@@ -7,7 +7,7 @@ API_INCLUDES = -Iinclude
 API_SOURCES = $(wildcard src/*.c)
 
 CC = gcc
-CFLAGS = -g -DLOG_USE_COLOR=1 -Wall
+CFLAGS = -g -DLOG_USE_COLOR=1 -Wall -O3
 
 main:
 	$(CC) $(CFLAGS) -pthread -lzmq -lrt $(API_INCLUDES) src/lepton.c -o bin/lepton

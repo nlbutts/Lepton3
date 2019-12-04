@@ -77,6 +77,7 @@ void continuous_transfer(int num_images)
     uint32_t img_count = 0;
     uint32_t prev_packet_number = 0;
     uint32_t failed_attempts = 0;
+    uint8_t segment_mask = 0;
 
     while (img_count < num_images)
     {
@@ -90,9 +91,10 @@ void continuous_transfer(int num_images)
                     // Copy the temp data into the segment
                     memcpy(segments[segment_index - 1], temp, 60*160);
 
-                    if (segment_index == 4)
+                    if ((segment_mask & 0x1E) == 0x1E)
                     {
-                        send_image((uint8_t*)segments, 4 * 60 * 160);
+                        send_image(&segments[0][0][0], 4 * 60 * 160);
+                        segment_mask = 0;
                     }
                 }
                 else
@@ -107,17 +109,25 @@ void continuous_transfer(int num_images)
                 if (packet_number == 20)
                 {
                     segment_index = (packet[0] >> 4) & 0x7;
+                    segment_mask |= 1 << segment_index;
+                    //printf("%d\n", segment_index);
                     if (segment_index == 0)
                     {
                         failed_attempts++;
                     }
                 }
             }
+            else
+            {
+                failed_attempts++;
+            }
 
-            if (failed_attempts > 500)
+            if (failed_attempts > 1000)
             {
                 printf("Resync\n");
                 failed_attempts = 0;
+                segment_index = 0;
+                segment_mask = 0;
                 sleep(1);
             }
         }
@@ -128,6 +138,50 @@ void continuous_transfer(int num_images)
         }
     }
 }
+
+void big_ass_transfer(int size)
+{
+    // Open a file
+    uint8_t * data = malloc(size);
+    if (data != NULL)
+    {
+        printf("Reading %d bytes\n", size);
+        int offset = 0;
+        while (offset < size)
+        {
+            int ret = read(spiFd, &data[offset], 164);
+            if (ret == 164)
+            {
+                offset += 164;
+            }
+            else
+            {
+                printf("Failed to read, ret: %d\n", ret);
+            }
+        }
+        printf("Read successful\n");
+        // Save image to file
+        FILE * f = fopen("spi.txt", "w");
+        if (f != NULL)
+        {
+            int packet_len = 0;
+            for (int i = 0; i < size; i++)
+            {
+                char temp[100];
+                snprintf(temp, 100, "%02X ", data[i]);
+                fwrite(temp, strlen(temp), 1, f);
+                packet_len++;
+                if (packet_len >= 164)
+                {
+                    fputs("\n", f);
+                    packet_len = 0;
+                }
+            }
+        }
+        fclose(f);
+    }
+}
+
 
 int main()
 {
@@ -143,7 +197,8 @@ int main()
         printf("Failed to init SPI\n");
     }
 
-    continuous_transfer(60);
+    //continuous_transfer(60);
+    big_ass_transfer(164000);
 
     if (spiFd > 0)
     {
