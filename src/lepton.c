@@ -147,18 +147,40 @@ void big_ass_transfer(int size)
     {
         printf("Reading %d bytes\n", size);
         int offset = 0;
-        while (offset < size)
+        #define NUM_OF_XFER 10
+        struct spi_ioc_transfer xfer[NUM_OF_XFER];
+
+        for (int i = 0; i < NUM_OF_XFER; i++)
         {
-            int ret = read(spiFd, &data[offset], 164);
-            if (ret == 164)
-            {
-                offset += 164;
-            }
-            else
-            {
-                printf("Failed to read, ret: %d\n", ret);
-            }
+            xfer[i].rx_buf = &data[i*164];
+            xfer[i].tx_buf = NULL;
+            xfer[i].len = 164;
+            xfer[i].speed_hz = 200000;
+            xfer[i].delay_usecs = 10;
+            xfer[i].bits_per_word = 8;
+            xfer[i].cs_change = 1;
+            xfer[i].tx_nbits = 8;
+            xfer[i].rx_nbits = 8;
+
         }
+
+        int ret = ioctl(spiFd, SPI_IOC_MESSAGE(NUM_OF_XFER), xfer);
+        printf("IOCTL return value %d\n", ret);
+
+        // while (offset < size)
+        // {
+        //     //int ret = read(spiFd, &data[offset], 164);
+        //     int ret = ioctl(spiFd, SPI_IOC_MESSAGE(NUM_OF_XFER), xfer);
+        //     printf("IOCTL return value %d\n", ret);
+        //     if (ret == 164)
+        //     {
+        //         offset += 164;
+        //     }
+        //     else
+        //     {
+        //         printf("Failed to read, ret: %d\n", ret);
+        //     }
+        // }
         printf("Read successful\n");
         // Save image to file
         FILE * f = fopen("spi.txt", "w");
@@ -183,8 +205,15 @@ void big_ass_transfer(int size)
 }
 
 
-int main()
+int main(int argc, char *argv[])
 {
+    int baudrate = 500000;
+    if (argc == 2)
+    {
+        sscanf(argv[1], "%d", &baudrate);
+        printf("Setting baud rate to %d\n", baudrate);
+    }
+
     printf("Attempting to read some spi data\n");
     spiFd = 0;
     if ((spiFd = open("/dev/spidev0.0", O_RDWR)) < 0)
@@ -192,7 +221,7 @@ int main()
        printf("Error opening spidev\n");
     }
 
-    if (vospi_init(spiFd, 24000000) < 1)
+    if (vospi_init(spiFd, baudrate) < 1)
     {
         printf("Failed to init SPI\n");
     }
